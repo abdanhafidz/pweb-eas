@@ -1,0 +1,6 @@
+[submodule "quzuu-back-end"]
+	path = quzuu-back-end
+	url = https://github.com/abdanhafidz/quzuu-back-end
+[submodule "quzuu-quiz-platform"]
+	path = quzuu-quiz-platform
+	url = https://github.com/rasyadlubisdev/quzuu-quiz-platform
