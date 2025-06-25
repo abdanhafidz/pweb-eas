@@ -1,4 +1,7 @@
 # Web Programming Final Project Documentation
+- Muhammad Rasyad Lubis (5054231 010)
+- Faiz Muhammad Kautsar (5054231 013)
+- Abdan Hafidz (5054231 021)
 ## Quzuu - Interactive Online Examination Platform
 
 [Demonstration Video : COMING SOON](https://quzuu.vercel.app) <br />
