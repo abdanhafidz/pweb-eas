@@ -1,6 +1,16 @@
 # Web Programming Final Project Documentation
 ## Quzuu - Interactive Online Examination Platform
 
+[Demonstration Video : COMING SOON](https://quzuu.vercel.app)
+[Paper File : COMING SOON](https://quzuu.vercel.app)
+[Slides/PPT : COMING SOON](https://www.canva.com/design/DAGrXqPwz9k/ce2cz7WtK94LfV6by9b9nA/view?utm_content=DAGrXqPwz9k&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hb39ba8e556)
+
+
+[Front-End Link : quzuu.vercel.app](https://quzuu.vercel.app)
+[Backend API Gateway : lifedebugger-quzuu-api-dev.hf.space](https://lifedebugger-quzuu-api-dev.hf.space/)
+[Postman Documentation](https://documenter.getpostman.com/view/13117366/2sB2ixitUr)
+
+
 ---
 
 ### 📋 Executive Summary
