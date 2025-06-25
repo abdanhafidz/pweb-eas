@@ -280,30 +280,86 @@ const handleGoogleLogin = async () => {
 
 **Backend Implementation (Go):**
 ```go
-// Google OAuth Token Exchange
-func (s *AuthService) GoogleOAuthCallback(code string) (*models.User, string, error) {
-    // Exchange authorization code for tokens
-    token, err := s.googleOAuthConfig.Exchange(context.Background(), code)
-    if err != nil {
-        return nil, "", err
-    }
-    
-    // Extract user info from ID token
-    idToken := token.Extra("id_token").(string)
-    claims, err := s.validateGoogleIDToken(idToken)
-    if err != nil {
-        return nil, "", err
-    }
-    
-    // Create or update user account
-    user, err := s.findOrCreateGoogleUser(claims)
-    if err != nil {
-        return nil, "", err
-    }
-    
-    // Generate JWT token
-    jwtToken, err := s.generateJWT(user)
-    return user, jwtToken, err
+package services
+
+import (
+	"context"
+	"errors"
+
+	"github.com/google/uuid"
+	"godp.abdanhafidz.com/models"
+	"godp.abdanhafidz.com/repositories"
+	"google.golang.org/api/idtoken"
+)
+
+type GoogleAuthService struct {
+	Service[models.ExternalAuth, models.AuthenticatedUser]
+}
+
+func (s *GoogleAuthService) Authenticate(isAgree bool) {
+	GoogleAuth := repositories.GetExternalAccountByOauthId(s.Constructor.OauthID)
+	payload, errGoogleAuth := idtoken.Validate(context.Background(), s.Constructor.OauthID, "")
+	s.Error = errGoogleAuth
+	if errGoogleAuth != nil {
+		s.Exception.Unauthorized = true
+		s.Exception.Message = "Oauth Provider Failed Login (Google Authentication)"
+		return
+	}
+	email := payload.Claims["email"]
+	checkRegisteredEmail := repositories.GetAccountbyEmail(email.(string))
+	if !checkRegisteredEmail.NoRecord {
+		token, _ := GenerateToken(&checkRegisteredEmail.Result)
+		checkRegisteredEmail.Result.Password = "SECRET"
+		s.Result = models.AuthenticatedUser{
+			Account: checkRegisteredEmail.Result,
+			Token:   token,
+		}
+		return
+	}
+	if GoogleAuth.NoRecord {
+		if !isAgree {
+			s.Exception.BadRequest = true
+			s.Exception.Message = "Please agree to the terms and conditions to create an account"
+			return
+		}
+		s.Constructor.OauthProvider = "Google"
+
+		createAccount := repositories.CreateAccount(models.Account{
+			Id:              uuid.New(),
+			Username:        payload.Claims["name"].(string),
+			Email:           email.(string),
+			IsEmailVerified: true,
+		})
+
+		s.Constructor.AccountId = createAccount.Result.Id
+		createGoogleAuth := repositories.CreateExternalAuth(s.Constructor)
+
+		GoogleAuth.Result.AccountId = createGoogleAuth.Result.AccountId
+		userProfile := UserProfileService{}
+		userProfile.Constructor.AccountId = GoogleAuth.Result.AccountId
+		userProfile.Create()
+		if userProfile.Error != nil {
+			s.Error = userProfile.Error
+			return
+		}
+		s.Error = createGoogleAuth.RowsError
+		s.Error = errors.Join(s.Error, createAccount.RowsError)
+	}
+
+	accountData := repositories.GetAccountById(GoogleAuth.Result.AccountId)
+	token, err_tok := GenerateToken(&accountData.Result)
+
+	if err_tok != nil {
+		s.Error = errors.Join(s.Error, err_tok)
+	}
+
+	accountData.Result.Password = "SECRET"
+	s.Result = models.AuthenticatedUser{
+		Account: accountData.Result,
+		Token:   token,
+	}
+	s.Error = accountData.RowsError
+
 }
 ```
 
@@ -515,46 +571,217 @@ graph TB
 
 **CRUD Operations Implementation:**
 ```go
-// User Repository Pattern
-type UserRepository interface {
-    Create(user *models.User) error
-    GetByID(id uuid.UUID) (*models.User, error)
-    GetByEmail(email string) (*models.User, error)
-    Update(user *models.User) error
-    Delete(id uuid.UUID) error
-    List(filters map[string]interface{}) ([]*models.User, error)
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	Salt := os.Getenv("SALT")
+	dsn := "host=" + dbHost + " user=" + dbUser + " password=" + dbPassword + " dbname=" + dbName + " port=" + dbPort + " sslmode=disable TimeZone=Asia/Jakarta"
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
+
+```
+```go
+
+package repositories
+
+import (
+	"fmt"
+	"godp.abdanhafidz.com/config"
+	"gorm.io/gorm"
+	"strings"
+)
+
+type Repositories interface {
+	FindAllPaginate()
+	Where()
+	Find()
+	Create()
+	Update()
+	CustomQuery()
+	Delete()
+}
+type PaginationConstructor struct {
+	Limit    int
+	Offset   int
+	Filter   string
+	FilterBy string
 }
 
-// GORM Implementation
-type userRepository struct {
-    db *gorm.DB
+type PaginationMetadata struct {
+	TotalRecords int `json:"total_records"`
+	TotalPages   int `json:"total_pages"`
+	CurrentPage  int `json:"current_page"`
+	PageSize     int `json:"page_size"`
 }
 
-func (r *userRepository) Create(user *models.User) error {
-    return r.db.Create(user).Error
+type CustomQueryConstructor struct {
+	SQL    string
+	Values interface{}
 }
 
-func (r *userRepository) GetByEmail(email string) (*models.User, error) {
-    var user models.User
-    err := r.db.Where("email = ?", email).First(&user).Error
-    return &user, err
+type Repository[TConstructor any, TResult any] struct {
+	Constructor TConstructor
+	Pagination  PaginationConstructor
+	CustomQuery CustomQueryConstructor
+	Result      TResult
+	Transaction *gorm.DB
+	RowsCount   int
+	NoRecord    bool
+	RowsError   error
+}
+
+func Construct[TConstructor any, TResult any](constructor ...TConstructor) *Repository[TConstructor, TResult] {
+	if len(constructor) == 1 {
+		return &Repository[TConstructor, TResult]{
+			Constructor: constructor[0],
+			Transaction: config.DB,
+		}
+	}
+	return &Repository[TConstructor, TResult]{
+		Constructor: constructor[0],
+		Transaction: config.DB.Begin(),
+	}
+}
+func (repo *Repository[T1, T2]) Transactions(transactions ...func(*Repository[T1, T2]) *gorm.DB) {
+	for _, tx := range transactions {
+		repo.Transaction = tx(repo)
+		if repo.RowsError != nil {
+			return
+		}
+	}
+}
+func WhereGivenConstructor[T1 any, T2 any](repo *Repository[T1, T2]) *gorm.DB {
+	tx := repo.Transaction.Where(&repo.Constructor)
+	repo.RowsCount = int(tx.RowsAffected)
+	repo.NoRecord = repo.RowsCount == 0
+	repo.RowsError = tx.Error
+	return tx
+}
+func Find[T1 any, T2 any](repo *Repository[T1, T2]) *gorm.DB {
+	tx := repo.Transaction.Find(&repo.Result)
+	repo.RowsCount = int(tx.RowsAffected)
+	repo.NoRecord = repo.RowsCount == 0
+	repo.RowsError = tx.Error
+	return tx
+}
+
+func FindAllPaginate[T1 any, T2 any](repo *Repository[T1, T2]) *gorm.DB {
+	tx := repo.Transaction.Limit(repo.Pagination.Limit).Offset(repo.Pagination.Offset)
+
+	tx = buildFilter(tx, repo.Pagination)
+
+	tx = tx.Find(&repo.Result)
+
+	repo.RowsCount = int(tx.RowsAffected)
+	repo.NoRecord = repo.RowsCount == 0
+	repo.RowsError = tx.Error
+
+	return tx
+}
+
+func Create[T1 any](repo *Repository[T1, T1]) *gorm.DB {
+	tx := repo.Transaction.Create(&repo.Constructor)
+	repo.RowsCount = int(tx.RowsAffected)
+	repo.NoRecord = repo.RowsCount == 0
+	repo.RowsError = tx.Error
+	repo.Result = repo.Constructor
+	return tx
+}
+
+func Update[T1 any](repo *Repository[T1, T1]) *gorm.DB {
+	tx := repo.Transaction.Save(&repo.Constructor)
+	repo.RowsCount = int(tx.RowsAffected)
+	repo.NoRecord = repo.RowsCount == 0
+	repo.RowsError = tx.Error
+	repo.Result = repo.Constructor
+	return tx
+}
+
+func Delete[T1 any](repo *Repository[T1, T1]) *gorm.DB {
+	tx := repo.Transaction.Delete(&repo.Constructor)
+	repo.RowsCount = int(tx.RowsAffected)
+	repo.NoRecord = repo.RowsCount == 0
+	repo.RowsError = tx.Error
+	return tx
+}
+
+func CustomQuery[T1 any, T2 any](repo *Repository[T1, T2]) *gorm.DB {
+	tx := repo.Transaction.Raw(repo.CustomQuery.SQL, repo.CustomQuery.Values).Scan(&repo.Result)
+	repo.RowsCount = int(tx.RowsAffected)
+	repo.NoRecord = repo.RowsCount == 0
+	repo.RowsError = tx.Error
+	return tx
+}
+
+func buildFilter(db *gorm.DB, pagination PaginationConstructor) *gorm.DB {
+	if pagination.Filter != "" && pagination.FilterBy != "" {
+		filterFields := strings.Split(pagination.FilterBy, ",")
+		filterValues := strings.Split(pagination.Filter, ",")
+
+		for i, field := range filterFields {
+			if i >= len(filterValues) {
+				break
+			}
+			filterValue := filterValues[i]
+			if filterValue != "" {
+				condition := fmt.Sprintf("%s ILIKE ?", field)
+				db = db.Where(condition, "%"+filterValue+"%")
+			}
+		}
+	}
+	return db
 }
 ```
 
 **Auto Migration System:**
 ```go
-func AutoMigrate(db *gorm.DB) error {
-    return db.AutoMigrate(
-        &models.User{},
-        &models.Exam{},
-        &models.Question{},
-        &models.ExamSession{},
-        &models.QuestionResponse{},
-        &models.CodeBlock{},
-        &models.UserProfile{},
-        &models.OAuthAccount{},
-    )
-}
+	db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";")
+	if err := db.AutoMigrate(&models.Account{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.AccountDetails{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.EmailVerification{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.ExternalAuth{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.FCM{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.ForgotPassword{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.Events{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.Announcement{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.ProblemSet{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.Questions{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.EventAssign{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.ProblemSetAssign{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.ExamProgress{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.ExamProgress_Result{}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.Result{}); err != nil {
+		log.Fatal(err)
+	}
 ```
 
 ### 📱 Frontend Architecture & Implementation
@@ -703,73 +930,89 @@ graph TB
 
 **Docker Configuration for Backend:**
 ```dockerfile
-# Multi-stage Docker build
-FROM golang:1.21-alpine AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/server
+# Gunakan image dasar Golang versi 1.24.1
+FROM golang:1.24.1 AS builder
 
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /app/main .
-COPY --from=builder /app/configs ./configs
-EXPOSE 8080
+# Set working directory
+WORKDIR /app
+
+# Copy go.mod dan go.sum
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy seluruh kode
+COPY . .
+
+# Buat file .env dengan variabel environment yang dibutuhkan
+RUN echo "DB_HOST=aws-0-ap-southeast-1.pooler.supabase.com" >> .env && \
+    echo "DB_USER=postgres.yxwraotdmkseklnqrnlp" >> .env && \
+    echo "DB_PASSWORD=QUZUU2025" >> .env && \
+    echo "DB_PORT=5432" >> .env && \
+    echo "DB_NAME=postgres" >> .env && \
+    echo "HOST_ADDRESS = 0.0.0.0" >> .env && \
+    echo "HOST_PORT = 7860" >> .env && \
+    echo "EMAIL_VERIFICATION_DURATION = 2" >> .env
+
+# Build aplikasi
+RUN go build -o main .
+
+# Jalankan aplikasi
 CMD ["./main"]
 ```
 
-**GitHub Actions Workflow:**
+**GitHub Actions Workflow (Backend):**
 ```yaml
-name: Deploy Quzuu Platform
-
+name: Deploy to Huggingface
 on:
   push:
-    branches: [ main ]
-
+    branches:
+      - master
 jobs:
-  build-frontend:
+  deploy-to-huggingface:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm run build
-
-  build-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
-        with:
-          go-version: '1.21'
-      - run: go mod download
-      - run: go build -o main ./cmd/server
-
-  deploy-backend:
-    needs: [build-backend]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build and Push Docker to Hugging Face
+      # Checkout repository
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      # Setup Git
+      - name: Setup Git for Huggingface
         run: |
-          docker build -t quzuu-backend .
-          # Push repository to Hugging Face Spaces
-
-  deploy-frontend:
-    needs: [build-frontend]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v20
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          git config --global user.email "abdan.hafidz@gmail.com"
+          git config --global user.name "abdanhafidz"
+      # Clone Huggingface Space Repository
+      - name: Clone Huggingface Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git clone https://huggingface.co/spaces/lifedebugger/quzuu-api-dev space
+      # Update Git Remote URL and Pull Latest Changes
+      - name: Update Remote and Pull Changes
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          cd space
+          git remote set-url origin https://lifedebugger:$HF_TOKEN@huggingface.co/spaces/lifedebugger/quzuu-api-dev
+          git pull origin main || echo "No changes to pull"
+      # Clean Space Directory - Delete all files except .git
+      - name: Clean Space Directory
+        run: |
+          cd space
+          find . -mindepth 1 -not -path "./.git*" -delete
+      # Copy Files to Huggingface Space
+      - name: Copy Files to Space
+        run: |
+          rsync -av --exclude='.git' ./ space/
+      # Commit and Push to Huggingface Space
+      - name: Commit and Push to Huggingface
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          cd space
+          git add .
+          git commit -m "Deploy files from GitHub repository" || echo "No changes to commit"
+          git push origin main || echo "No changes to push"
 ```
 
 ### 📊 Project Implementation Summary
