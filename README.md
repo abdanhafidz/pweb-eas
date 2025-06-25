@@ -32,19 +32,12 @@ The standout feature of Quzuu is the **Block Code Puzzle** system, which allows 
 #### Microservice Architecture Overview
 ```mermaid
 graph TB
-    subgraph "Client Layer"
-        WEB[Web Browser<br/>React Application]
-        MOBILE[Mobile App<br/>Future Implementation]
-    end
-    
-    subgraph "API Gateway"
-        GATEWAY[Load Balancer<br/>Request Routing]
-    end
-    
     subgraph "Frontend Service"
         FE[Next.js TypeScript<br/>Server-Side Rendering<br/>Static Generation]
     end
-    
+    subgraph "API Gateway"
+        GATEWAY[Load Balancer<br/>Request Routing]
+    end
     subgraph "Backend Services"
         AUTH[Authentication Service<br/>JWT & OAuth]
         EXAM[Examination Service<br/>Question Management]
