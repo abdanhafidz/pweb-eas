@@ -60,13 +60,11 @@ graph TB
         DOCKER[Docker Containers<br/>Microservice Deployment]
     end
     
-    WEB --> GATEWAY
-    MOBILE --> GATEWAY
-    GATEWAY --> FE
-    FE --> AUTH
-    FE --> EXAM
-    FE --> USER
-    FE --> EVAL
+
+    FE --> GATEWAY
+    GATEWAY --> AUTH
+    GATEWAY --> EXAM
+    GATEWAY --> USER
     
     AUTH --> POSTGRES
     EXAM --> POSTGRES
@@ -417,109 +415,100 @@ graph LR
 
 #### Entity Relationship Diagram
 ```mermaid
-erDiagram
-    USER {
-        uuid id PK
-        string email UK
-        string password_hash
-        string first_name
-        string last_name
-        string avatar_url
-        bool email_verified
-        enum role
-        timestamp created_at
-        timestamp updated_at
-    }
+graph TB
+    subgraph "USER MANAGEMENT"
+        ACCOUNT["👤 ACCOUNT<br/>🔑 id (UUID)<br/>📧 username (UK)<br/>📧 email (UK)<br/>🏷️ role<br/>🔒 password<br/>✅ is_email_verified<br/>📝 is_detail_completed<br/>📅 created_at<br/>🗑️ deleted_at"]
+        
+        ACCOUNT_DETAILS["📋 ACCOUNT_DETAILS<br/>🔑 id (UUID)<br/>🔗 account_id (FK)<br/>👤 full_name<br/>🏫 school_name<br/>🌏 province<br/>🏙️ city<br/>🖼️ avatar<br/>📱 phone_number"]
+        
+        EMAIL_VERIFICATION["📧 EMAIL_VERIFICATION<br/>🔑 id (UUID)<br/>🎫 token<br/>🔗 account_id (FK)<br/>⏰ is_expired<br/>📅 created_at<br/>⏳ expired_at"]
+        
+        EXTERNAL_AUTH["🔗 EXTERNAL_AUTH<br/>🔑 id (UUID)<br/>🆔 oauth_id<br/>🔗 account_id (FK)<br/>🏢 oauth_provider"]
+        
+        FCM["📱 FCM<br/>🔑 id (UUID)<br/>🔗 account_id (FK)<br/>🔔 fcm_token"]
+        
+        FORGOT_PASSWORD["🔐 FORGOT_PASSWORD<br/>🔑 id (UUID)<br/>🎫 token<br/>🔗 account_id (FK)<br/>⏰ is_expired<br/>📅 created_at<br/>⏳ expired_at"]
+    end
     
-    EXAM {
-        uuid id PK
-        uuid creator_id FK
-        string title
-        text description
-        int duration_minutes
-        int max_attempts
-        bool is_active
-        timestamp start_time
-        timestamp end_time
-        timestamp created_at
-        timestamp updated_at
-    }
+    subgraph "EVENT & EXAM SYSTEM"
+        EVENTS["🎯 EVENTS<br/>🔑 id (UUID)<br/>📝 title<br/>🔗 slug<br/>⏰ start_event<br/>⏰ end_event<br/>🔢 event_code<br/>🌐 is_public"]
+        
+        ANNOUNCEMENT["📢 ANNOUNCEMENT<br/>🔑 id (UUID)<br/>📝 title<br/>📅 created_at<br/>💬 message<br/>👤 publisher<br/>🔗 event_id (FK)"]
+        
+        PROBLEM_SET["📚 PROBLEM_SET<br/>🔑 id (UUID)<br/>📝 title<br/>⏱️ duration<br/>🔀 randomize<br/>🔢 mc_count<br/>🔢 sa_count<br/>🔢 essay_count"]
+        
+        QUESTIONS["❓ QUESTIONS<br/>🔑 id (UUID)<br/>🏷️ type<br/>❓ question<br/>📋 options[]<br/>✅ ans_key[]<br/>💯 corr_mark<br/>❌ incorr_mark<br/>⭕ null_mark<br/>🔗 problem_set_id (FK)"]
+        
+        EVENT_ASSIGN["📝 EVENT_ASSIGN<br/>🔑 id (UUID)<br/>🔗 account_id (FK)<br/>🔗 event_id (FK)<br/>📅 assigned_at"]
+        
+        PROBLEM_SET_ASSIGN["🔗 PROBLEM_SET_ASSIGN<br/>🔑 id (UUID)<br/>🔗 event_id (FK)<br/>🔗 problem_set_id (FK)"]
+    end
     
-    QUESTION {
-        uuid id PK
-        uuid exam_id FK
-        enum type
-        string title
-        text content
-        json options
-        json correct_answer
-        int points
-        int order_index
-        timestamp created_at
-        timestamp updated_at
-    }
+    subgraph "PROGRESS & RESULTS"
+        EXAM_PROGRESS["📊 EXAM_PROGRESS<br/>🔑 id (UUID)<br/>🔗 account_id (FK)<br/>🔗 event_id (FK)<br/>🔗 problem_set_id (FK)<br/>📅 created_at<br/>⏰ due_at<br/>📋 questions_order[]<br/>💾 answers (JSONB)"]
+        
+        RESULT["🏆 RESULT<br/>🔑 id (UUID)<br/>🔗 account_id (FK)<br/>🔗 event_id (FK)<br/>🔗 problem_set_id (FK)<br/>🔗 progress_id (FK)<br/>⏰ finish_time<br/>✅ correct<br/>❌ incorrect<br/>⭕ empty<br/>🔄 on_correction<br/>📝 manual_scoring<br/>💯 mc_score<br/>📊 manual_score<br/>🎯 final_score"]
+    end
     
-    EXAM_SESSION {
-        uuid id PK
-        uuid user_id FK
-        uuid exam_id FK
-        enum status
-        timestamp started_at
-        timestamp submitted_at
-        int total_score
-        json answers
-    }
+    subgraph "LEARNING MANAGEMENT"
+        ACADEMY["🎓 ACADEMY<br/>🔑 id (UUID)<br/>📝 title<br/>🔗 slug<br/>📄 description"]
+        
+        ACADEMY_MATERIAL["📖 ACADEMY_MATERIAL<br/>🔑 id (UUID)<br/>🔗 academy_id (FK)<br/>📝 title<br/>🔗 slug<br/>📄 description"]
+        
+        ACADEMY_CONTENT["📄 ACADEMY_CONTENT<br/>🔑 id (UUID)<br/>📝 title<br/>🔢 order<br/>🔗 academy_material_id (FK)<br/>📄 description"]
+        
+        ACADEMY_MATERIAL_PROGRESS["📈 ACADEMY_MATERIAL_PROGRESS<br/>🔑 id (UUID)<br/>🔗 account_id (FK)<br/>🔗 academy_material_id (FK)<br/>📊 progress"]
+        
+        ACADEMY_CONTENT_PROGRESS["📊 ACADEMY_CONTENT_PROGRESS<br/>🔑 id (UUID)<br/>🔗 account_id (FK)<br/>🔗 academy_id (FK)"]
+    end
     
-    QUESTION_RESPONSE {
-        uuid id PK
-        uuid session_id FK
-        uuid question_id FK
-        json answer_data
-        int points_earned
-        bool is_correct
-        int time_spent_seconds
-        timestamp answered_at
-    }
+    subgraph "CONFIGURATION & LOCATION"
+        OPTION_CATEGORY["⚙️ OPTION_CATEGORY<br/>🔑 id (UINT)<br/>📝 option_name<br/>🔗 option_slug"]
+        
+        OPTION_VALUES["🔧 OPTION_VALUES<br/>🔑 id (UINT)<br/>🔗 option_category_id (FK)<br/>💾 option_value"]
+        
+        REGION_PROVINCE["🌏 REGION_PROVINCE<br/>🔑 id (UINT)<br/>📝 name<br/>🔢 code"]
+        
+        REGION_CITY["🏙️ REGION_CITY<br/>🔑 id (UINT)<br/>🏷️ type<br/>📝 name<br/>🔢 code<br/>🔢 full_code<br/>🔗 province_id (FK)"]
+    end
     
-    CODE_BLOCK {
-        uuid id PK
-        uuid question_id FK
-        string block_type
-        text code_content
-        int position
-        json metadata
-    }
+    %% RELATIONSHIPS
     
-    USER_PROFILE {
-        uuid id PK
-        uuid user_id FK
-        text bio
-        json preferences
-        json statistics
-        timestamp updated_at
-    }
+    %% User Management Relationships
+    ACCOUNT ---|1:1| ACCOUNT_DETAILS
+    ACCOUNT ---|1:M| EMAIL_VERIFICATION
+    ACCOUNT ---|1:M| EXTERNAL_AUTH
+    ACCOUNT ---|1:M| FCM
+    ACCOUNT ---|1:M| FORGOT_PASSWORD
     
-    OAUTH_ACCOUNT {
-        uuid id PK
-        uuid user_id FK
-        string provider
-        string provider_account_id
-        json provider_data
-        timestamp created_at
-    }
+    %% Event System Relationships
+    ACCOUNT ---|1:M| EVENT_ASSIGN
+    EVENTS ---|1:M| EVENT_ASSIGN
+    EVENTS ---|1:M| ANNOUNCEMENT
+    EVENTS ---|1:M| PROBLEM_SET_ASSIGN
+    PROBLEM_SET ---|1:M| PROBLEM_SET_ASSIGN
+    PROBLEM_SET ---|1:M| QUESTIONS
     
-    USER ||--o{ EXAM : creates
-    USER ||--o{ EXAM_SESSION : takes
-    USER ||--|| USER_PROFILE : has
-    USER ||--o{ OAUTH_ACCOUNT : has
+    %% Progress & Results Relationships
+    ACCOUNT ---|1:M| EXAM_PROGRESS
+    EVENTS ---|1:M| EXAM_PROGRESS
+    PROBLEM_SET ---|1:M| EXAM_PROGRESS
+    EXAM_PROGRESS ---|1:1| RESULT
+    ACCOUNT ---|1:M| RESULT
+    EVENTS ---|1:M| RESULT
+    PROBLEM_SET ---|1:M| RESULT
     
-    EXAM ||--o{ QUESTION : contains
-    EXAM ||--o{ EXAM_SESSION : generates
+    %% Academy System Relationships
+    ACADEMY ---|1:M| ACADEMY_MATERIAL
+    ACADEMY_MATERIAL ---|1:M| ACADEMY_CONTENT
+    ACADEMY_MATERIAL ---|1:M| ACADEMY_MATERIAL_PROGRESS
+    ACADEMY ---|1:M| ACADEMY_CONTENT_PROGRESS
+    ACCOUNT ---|1:M| ACADEMY_MATERIAL_PROGRESS
+    ACCOUNT ---|1:M| ACADEMY_CONTENT_PROGRESS
     
-    QUESTION ||--o{ QUESTION_RESPONSE : receives
-    QUESTION ||--o{ CODE_BLOCK : contains
-    
-    EXAM_SESSION ||--o{ QUESTION_RESPONSE : includes
+    %% Configuration Relationships
+    OPTION_CATEGORY ---|1:M| OPTION_VALUES
+    REGION_PROVINCE ---|1:M| REGION_CITY
 ```
 
 #### Database Operations & GORM Implementation
