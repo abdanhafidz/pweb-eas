@@ -7,7 +7,7 @@
 
 [Demonstration Video : COMING SOON](https://quzuu.vercel.app) <br />
 [Paper File : COMING SOON](https://quzuu.vercel.app) <br />
-[Slides/PPT : COMING SOON](https://www.canva.com/design/DAGrXqPwz9k/ce2cz7WtK94LfV6by9b9nA/view?utm_content=DAGrXqPwz9k&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hb39ba8e556) <br />
+[Slides/PPT](https://www.canva.com/design/DAGrXqPwz9k/ce2cz7WtK94LfV6by9b9nA/view?utm_content=DAGrXqPwz9k&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hb39ba8e556) <br />
 
 
 [Front-End Link : quzuu.vercel.app](https://quzuu.vercel.app) <br />
@@ -99,7 +99,6 @@ graph TB
 - **Next.js 14** with TypeScript for type safety
 - **React 18** with hooks and context API
 - **Tailwind CSS** for responsive design
-- **React DnD** for drag-and-drop functionality
 - **Axios** for HTTP client communications
 
 **Backend Technologies:**
@@ -204,7 +203,7 @@ classDiagram
 The Block Code Puzzle system represents the most innovative aspect of Quzuu:
 
 **Technical Implementation:**
-- **Drag & Drop Engine**: Built using React DnD library with custom drop zones
+- **Drag & Drop Engine**: Built using native React useState for click, drag and drop features
 - **Code Block Rendering**: SVG-based visual representation of code blocks
 - **Syntax Validation**: Real-time syntax checking as blocks are arranged
 - **Execution Engine**: Server-side code compilation and execution for validation
@@ -803,60 +802,131 @@ func buildFilter(db *gorm.DB, pagination PaginationConstructor) *gorm.DB {
 #### Component Architecture
 ```mermaid
 graph TB
-    subgraph "Page Components"
+    subgraph "Authentication System"
+        LOGIN[Login Page]
+        REGISTER[Register Page]
+        VERIFY[Verify Email Page]
+        RESET[Reset Password Page]
+        COMPLETE[Complete Profile Page]
+        GOOGLE_AUTH[Google OAuth]
+    end
+    
+    subgraph "Main Pages"
         HOME[Home Page]
-        AUTH[Authentication Pages]
-        DASHBOARD[Dashboard]
-        EXAM[Exam Interface]
-        RESULTS[Results Page]
+        EVENT_LIST[Event List]
+        EVENT_DETAILS[Event Details]
+        QUIZ_START[Quiz Start]
+        QUIZ_PAGE[Quiz Interface]
+        LEADERBOARD[Leaderboard]
+        ANNOUNCEMENT[Announcement]
+        SCOREBOARD[Scoreboard]
     end
     
-    subgraph "Layout Components"
-        NAVBAR[Navigation Bar]
-        SIDEBAR[Sidebar]
-        FOOTER[Footer]
-        LAYOUT[Main Layout]
+    subgraph "Layout & Navigation"
+        NAVBAR[Navbar Component]
+        USER_DROPDOWN[User Dropdown]
+        NAV_EVENT[Event Navigation]
+        NAV_QUIZ[Quiz Navigation]
+        PROVIDERS[Context Providers]
     end
     
-    subgraph "Feature Components"
-        QUESTION[Question Components]
-        BLOCK_CODE[Block Code Puzzle]
-        TIMER[Exam Timer]
-        PROGRESS[Progress Bar]
+    subgraph "Question Types"
+        RADIO[Radio Answer]
+        CHECKBOX[Checkbox Answer]
+        SHORT[Short Answer]
+        CODE_SHORT[Code Short Answer]
+        CLICK_CHIP[Click Chip Answer]
+        FILE[File Answer]
+        TRUE_FALSE[True/False Answer]
+        CODE_EDITOR[Code Editor Answer]
     end
     
-    subgraph "UI Components"
+    subgraph "UI Components (shadcn/ui)"
         BUTTON[Button]
-        INPUT[Input Fields]
-        MODAL[Modal Dialog]
-        DROPDOWN[Dropdown]
+        INPUT[Input]
+        FORM[Form Components]
+        TABLE[Table Components]
+        SELECT[Select]
+        LABEL[Label]
+        TOAST[Toast Notifications]
+        RADIO_GROUP[Radio Group]
     end
     
-    subgraph "Context Providers"
-        AUTH_CTX[Auth Context]
-        EXAM_CTX[Exam Context]
-        THEME_CTX[Theme Context]
+    subgraph "Specialized Components"
+        COUNTDOWN[Countdown Timer]
+        QUIZ_CONTAINER[Quiz Container]
+        SECTION_QUIZ[Section Quiz]
+        DATA_TABLE[Data Table]
+        DRAGGABLE[Draggable Answer]
     end
     
-    LAYOUT --> NAVBAR
-    LAYOUT --> SIDEBAR
-    LAYOUT --> FOOTER
+    subgraph "Context & State Management"
+        AUTH_CONTEXT[Auth Context]
+        NEXTAUTH[NextAuth Session]
+        API_CLIENT[API Client]
+    end
     
-    HOME --> LAYOUT
-    AUTH --> LAYOUT
-    DASHBOARD --> LAYOUT
-    EXAM --> LAYOUT
-    RESULTS --> LAYOUT
+    subgraph "External Services"
+        BACKEND_API[Backend API]
+        GOOGLE_OAUTH[Google OAuth Provider]
+    end
     
-    EXAM --> QUESTION
-    QUESTION --> BLOCK_CODE
-    EXAM --> TIMER
-    EXAM --> PROGRESS
+    %% Main Flow Connections
+    HOME --> EVENT_LIST
+    EVENT_LIST --> EVENT_DETAILS
+    EVENT_DETAILS --> QUIZ_START
+    QUIZ_START --> QUIZ_PAGE
     
-    AUTH_CTX --> AUTH
-    AUTH_CTX --> DASHBOARD
-    EXAM_CTX --> EXAM
-    THEME_CTX --> LAYOUT
+    %% Authentication Flow
+    LOGIN --> GOOGLE_AUTH
+    REGISTER --> VERIFY
+    VERIFY --> COMPLETE
+    COMPLETE --> HOME
+    
+    %% Layout Connections
+    NAVBAR --> USER_DROPDOWN
+    PROVIDERS --> AUTH_CONTEXT
+    PROVIDERS --> NEXTAUTH
+    
+    %% Quiz System
+    QUIZ_PAGE --> QUIZ_CONTAINER
+    QUIZ_CONTAINER --> RADIO
+    QUIZ_CONTAINER --> CHECKBOX
+    QUIZ_CONTAINER --> SHORT
+    QUIZ_CONTAINER --> CODE_SHORT
+    QUIZ_CONTAINER --> CLICK_CHIP
+    QUIZ_CONTAINER --> FILE
+    QUIZ_CONTAINER --> TRUE_FALSE
+    QUIZ_CONTAINER --> CODE_EDITOR
+    
+    QUIZ_PAGE --> NAV_QUIZ
+    NAV_QUIZ --> COUNTDOWN
+    
+    %% Data Management
+    AUTH_CONTEXT --> API_CLIENT
+    API_CLIENT --> BACKEND_API
+    NEXTAUTH --> GOOGLE_OAUTH
+    
+    %% UI Component Usage
+    QUIZ_CONTAINER --> BUTTON
+    QUIZ_CONTAINER --> INPUT
+    AUTH --> FORM
+    HOME --> DATA_TABLE
+    
+    %% Specialized Features
+    EVENT_DETAILS --> SECTION_QUIZ
+    QUIZ_PAGE --> COUNTDOWN
+    HOME --> DATA_TABLE
+    
+    %% Notifications
+    API_CLIENT --> TOAST
+    AUTH_CONTEXT --> TOAST
+    
+    style AUTH_CONTEXT fill:#e1f5fe
+    style NEXTAUTH fill:#e8f5e8
+    style BACKEND_API fill:#fff3e0
+    style QUIZ_CONTAINER fill:#f3e5f5
+    style HOME fill:#e8eaf6
 ```
 
 #### React Context Implementation
