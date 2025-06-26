@@ -5,7 +5,7 @@
 - Abdan Hafidz (5054231 021)
 ## Quzuu - Interactive Online Examination Platform
 
-[Demonstration Video : COMING SOON](https://quzuu.vercel.app) <br />
+[Demonstration Video]([https://quzuu.vercel.app](https://youtu.be/_XGXD4BqFT4)) <br />
 [Paper File : COMING SOON](https://quzuu.vercel.app) <br />
 [Slides/PPT](https://www.canva.com/design/DAGrXqPwz9k/ce2cz7WtK94LfV6by9b9nA/view?utm_content=DAGrXqPwz9k&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hb39ba8e556) <br />
 
